@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dueluz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dueluz
+      POSTGRES_PASSWORD: dueluz
+      POSTGRES_DB: dueluz
+    ports:
+      - '5434:5432'
+    volumes:
+      - dueluz-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U dueluz -d dueluz']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: dueluz-redis
+    restart: unless-stopped
+    command: redis-server --save '' --appendonly no
+    ports:
+      - '6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  dueluz-pg:

@@ -1,0 +1,35 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+.turbo/
+
+# env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# uploads (local storage adapter)
+apps/web/public/uploads/*
+!apps/web/public/uploads/.gitkeep
+
+# os / editor
+.DS_Store
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# test artifacts
+playwright-report/
+test-results/
+.playwright/
+
+# playwright browsers metadata
+apps/web/.playwright/
+
+# typescript incremental cache
+*.tsbuildinfo

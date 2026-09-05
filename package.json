@@ -1,0 +1,31 @@
+{
+  "name": "dueluz",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @dueluz/web dev",
+    "build": "pnpm db:generate && pnpm --filter @dueluz/web build",
+    "start": "pnpm --filter @dueluz/web start",
+    "lint": "pnpm --filter @dueluz/web lint",
+    "typecheck": "pnpm --filter @dueluz/web typecheck",
+    "test": "pnpm --filter @dueluz/web test",
+    "test:integration": "pnpm --filter @dueluz/web test:integration",
+    "test:e2e": "pnpm --filter @dueluz/web test:e2e",
+    "db:generate": "pnpm --filter @dueluz/db generate",
+    "db:migrate": "pnpm --filter @dueluz/db migrate",
+    "db:deploy": "pnpm --filter @dueluz/db deploy",
+    "db:seed": "pnpm --filter @dueluz/db seed",
+    "db:reset": "pnpm --filter @dueluz/db reset",
+    "db:studio": "pnpm --filter @dueluz/db studio",
+    "setup": "node scripts/setup-env.mjs && pnpm install && pnpm db:generate"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,390 @@
+// Duel.uz — database schema
+// Docs: docs/ERD.md   Conventions: snake_case tables/columns, camelCase in TS.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+}
+
+enum DuelStatus {
+  DRAFT
+  PUBLISHED
+  HIDDEN
+  DELETED
+}
+
+enum Visibility {
+  PUBLIC
+  UNLISTED
+}
+
+enum CommentStatus {
+  VISIBLE
+  HIDDEN
+  DELETED
+}
+
+enum ReportTargetType {
+  DUEL
+  COMMENT
+}
+
+enum ReportReason {
+  SPAM
+  NSFW
+  HATE
+  HARASSMENT
+  COPYRIGHT
+  MISINFORMATION
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+enum ShareChannel {
+  COPY
+  TELEGRAM
+  WHATSAPP
+  X
+  FACEBOOK
+  NATIVE
+  OTHER
+}
+
+enum NotificationType {
+  DUEL_VOTE
+  DUEL_COMMENT
+  DUEL_LIKE
+  COMMENT_LIKE
+  MODERATION
+  SYSTEM
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  username     String     @unique
+  displayName  String     @map("display_name")
+  passwordHash String     @map("password_hash")
+  avatarUrl    String?    @map("avatar_url")
+  avatarKey    String?    @map("avatar_key")
+  bio          String?    @db.VarChar(280)
+  locale       String     @default("uz") @db.VarChar(5)
+  role         Role       @default(USER)
+  status       UserStatus @default(ACTIVE)
+  bannedUntil  DateTime?  @map("banned_until")
+  banReason    String?    @map("ban_reason")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  sessions      Session[]
+  duels         Duel[]
+  votes         Vote[]
+  comments      Comment[]
+  duelLikes     DuelLike[]
+  commentLikes  CommentLike[]
+  reports       Report[]           @relation("ReportAuthor")
+  resolvedRep   Report[]           @relation("ReportResolver")
+  shares        Share[]
+  notifications Notification[]
+  events        AnalyticsEvent[]
+
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+/// Opaque, revocable server-side sessions. The raw token only ever lives in the
+/// client's httpOnly cookie; the database stores its SHA-256 hash.
+model Session {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  tokenHash  String   @unique @map("token_hash")
+  userAgent  String?  @map("user_agent") @db.VarChar(400)
+  ipHash     String?  @map("ip_hash") @db.VarChar(64)
+  expiresAt  DateTime @map("expires_at")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Content
+// ---------------------------------------------------------------------------
+
+model Category {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  nameUz    String   @map("name_uz")
+  nameRu    String   @map("name_ru")
+  nameEn    String   @map("name_en")
+  emoji     String   @db.VarChar(8)
+  color     String   @db.VarChar(9)
+  position  Int      @default(0)
+  isActive  Boolean  @default(true) @map("is_active")
+  duelCount Int      @default(0) @map("duel_count")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  duels Duel[]
+
+  @@index([isActive, position])
+  @@map("categories")
+}
+
+model Duel {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  title       String     @db.VarChar(140)
+  description String?    @db.VarChar(500)
+  authorId    String?    @map("author_id")
+  categoryId  String     @map("category_id")
+  status      DuelStatus @default(PUBLISHED)
+  visibility  Visibility @default(PUBLIC)
+
+  // Denormalised counters — always mutated inside the same transaction as the
+  // row that causes them to change. Never trusted from the client.
+  voteCount    Int   @default(0) @map("vote_count")
+  likeCount    Int   @default(0) @map("like_count")
+  commentCount Int   @default(0) @map("comment_count")
+  shareCount   Int   @default(0) @map("share_count")
+  viewCount    Int   @default(0) @map("view_count")
+  hotScore     Float @default(0) @map("hot_score")
+
+  /// title + option names + category name, lowercased. Backing column of the
+  /// pg_trgm GIN index used by search.
+  searchText String @default("") @map("search_text")
+
+  moderationNote String?   @map("moderation_note")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  publishedAt    DateTime? @map("published_at")
+
+  author   User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  options  DuelOption[]
+  votes    Vote[]
+  comments Comment[]
+  likes    DuelLike[]
+  reports  Report[]
+  shares   Share[]
+  events   AnalyticsEvent[]
+
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([status, hotScore(sort: Desc)])
+  @@index([status, voteCount(sort: Desc)])
+  @@index([status, categoryId, publishedAt(sort: Desc)])
+  @@index([authorId, createdAt(sort: Desc)])
+  @@map("duels")
+}
+
+model DuelOption {
+  id        String  @id @default(cuid())
+  duelId    String  @map("duel_id")
+  name      String  @db.VarChar(80)
+  imageUrl  String? @map("image_url")
+  imageKey  String? @map("image_key")
+  color     String  @default("#6366f1") @db.VarChar(9)
+  position  Int
+  voteCount Int     @default(0) @map("vote_count")
+
+  duel  Duel   @relation(fields: [duelId], references: [id], onDelete: Cascade)
+  votes Vote[]
+
+  @@unique([duelId, position])
+  @@index([duelId])
+  @@map("duel_options")
+}
+
+// ---------------------------------------------------------------------------
+// Engagement
+// ---------------------------------------------------------------------------
+
+/// One vote per (duel, user) and per (duel, anonymous session).
+/// Uniqueness is enforced by the database — the insert failing IS the
+/// duplicate-vote check, which makes concurrent voting race-free.
+model Vote {
+  id        String   @id @default(cuid())
+  duelId    String   @map("duel_id")
+  optionId  String   @map("option_id")
+  userId    String?  @map("user_id")
+  anonId    String?  @map("anon_id") @db.VarChar(64)
+  ipHash    String?  @map("ip_hash") @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  duel   Duel       @relation(fields: [duelId], references: [id], onDelete: Cascade)
+  option DuelOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([duelId, userId], name: "vote_duel_user")
+  @@unique([duelId, anonId], name: "vote_duel_anon")
+  @@index([duelId])
+  @@index([optionId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([createdAt])
+  @@map("votes")
+}
+
+model DuelLike {
+  id        String   @id @default(cuid())
+  duelId    String   @map("duel_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  duel Duel @relation(fields: [duelId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([duelId, userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("duel_likes")
+}
+
+model Comment {
+  id        String        @id @default(cuid())
+  duelId    String        @map("duel_id")
+  userId    String        @map("user_id")
+  content   String        @db.VarChar(1000)
+  likeCount Int           @default(0) @map("like_count")
+  status    CommentStatus @default(VISIBLE)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  duel    Duel          @relation(fields: [duelId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes   CommentLike[]
+  reports Report[]
+
+  @@index([duelId, status, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("comments")
+}
+
+model CommentLike {
+  id        String   @id @default(cuid())
+  commentId String   @map("comment_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@map("comment_likes")
+}
+
+model Share {
+  id        String       @id @default(cuid())
+  duelId    String       @map("duel_id")
+  channel   ShareChannel
+  userId    String?      @map("user_id")
+  anonId    String?      @map("anon_id") @db.VarChar(64)
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  duel Duel  @relation(fields: [duelId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([duelId, createdAt(sort: Desc)])
+  @@map("shares")
+}
+
+// ---------------------------------------------------------------------------
+// Moderation
+// ---------------------------------------------------------------------------
+
+/// Exactly one of duelId / commentId is set, matching targetType.
+/// Enforced by a CHECK constraint added in a follow-up migration.
+model Report {
+  id           String           @id @default(cuid())
+  targetType   ReportTargetType @map("target_type")
+  duelId       String?          @map("duel_id")
+  commentId    String?          @map("comment_id")
+  reporterId   String?          @map("reporter_id")
+  reporterAnon String?          @map("reporter_anon") @db.VarChar(64)
+  reason       ReportReason
+  details      String?          @db.VarChar(500)
+  status       ReportStatus     @default(PENDING)
+  resolutionNote String?        @map("resolution_note") @db.VarChar(500)
+  resolvedById String?          @map("resolved_by_id")
+  resolvedAt   DateTime?        @map("resolved_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  duel       Duel?    @relation(fields: [duelId], references: [id], onDelete: Cascade)
+  comment    Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reporter   User?    @relation("ReportAuthor", fields: [reporterId], references: [id], onDelete: SetNull)
+  resolvedBy User?    @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([duelId])
+  @@index([commentId])
+  @@map("reports")
+}
+
+// ---------------------------------------------------------------------------
+// Future-facing (schema only — no MVP UI, but nothing blocks it later)
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  payload   Json             @default("{}")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(40)
+  userId    String?  @map("user_id")
+  anonId    String?  @map("anon_id") @db.VarChar(64)
+  duelId    String?  @map("duel_id")
+  locale    String?  @db.VarChar(5)
+  props     Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  duel Duel? @relation(fields: [duelId], references: [id], onDelete: Cascade)
+
+  @@index([name, createdAt(sort: Desc)])
+  @@index([createdAt])
+  @@map("analytics_events")
+}

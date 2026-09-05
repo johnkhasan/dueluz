@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: postgresql://dueluz:dueluz@localhost:5432/dueluz?schema=public
+  TEST_DATABASE_URL: postgresql://dueluz:dueluz@localhost:5432/dueluz_test?schema=public
+  REDIS_URL: redis://localhost:6379
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  NEXT_PUBLIC_APP_NAME: Duel.uz
+  # CI-only values. Real secrets never live in the repository.
+  SESSION_SECRET: ci-session-secret-value-at-least-32-chars
+  ANON_SECRET: ci-anonymous-secret-value-at-least-32-chars
+  IP_SALT: ci-ip-salt-value-that-is-at-least-32-chars
+  STORAGE_DRIVER: local
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dueluz
+          POSTGRES_PASSWORD: dueluz
+          POSTGRES_DB: dueluz
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U dueluz"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Write .env
+        run: |
+          {
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "TEST_DATABASE_URL=$TEST_DATABASE_URL"
+            echo "REDIS_URL=$REDIS_URL"
+            echo "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL"
+            echo "NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME"
+            echo "SESSION_SECRET=$SESSION_SECRET"
+            echo "ANON_SECRET=$ANON_SECRET"
+            echo "IP_SALT=$IP_SALT"
+            echo "STORAGE_DRIVER=$STORAGE_DRIVER"
+            echo "LOCAL_STORAGE_DIR=./apps/web/public/uploads"
+            echo "LOCAL_STORAGE_PUBLIC_PATH=/uploads"
+          } > .env
+
+      - name: Prepare databases
+        run: |
+          pnpm db:generate
+          pnpm db:deploy
+          PGPASSWORD=dueluz psql -h localhost -U dueluz -d postgres \
+            -c "CREATE DATABASE dueluz_test OWNER dueluz;"
+          DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @dueluz/db exec prisma migrate deploy
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm test:integration
+      - run: pnpm build
+
+      - name: Seed for end-to-end tests
+        run: pnpm db:seed
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @dueluz/web exec playwright install --with-deps chromium webkit
+
+      - run: pnpm test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7

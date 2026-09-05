@@ -1,0 +1,47 @@
+{
+  "name": "@dueluz/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:integration": "dotenv -e ../../.env -- vitest run --project integration",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@dueluz/db": "workspace:*",
+    "@node-rs/argon2": "^2.0.2",
+    "clsx": "^2.1.1",
+    "ioredis": "^5.4.2",
+    "lucide-react": "^0.474.0",
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sharp": "^0.33.5",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.734.0",
+    "@eslint/eslintrc": "^3.3.7",
+    "@playwright/test": "^1.50.1",
+    "@tailwindcss/postcss": "^4.0.3",
+    "@types/node": "^22.13.1",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "dotenv": "^16.4.7",
+    "dotenv-cli": "^8.0.0",
+    "eslint": "^9.19.0",
+    "eslint-config-next": "^15.1.6",
+    "tailwindcss": "^4.0.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

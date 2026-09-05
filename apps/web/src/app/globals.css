@@ -1,0 +1,283 @@
+@import 'tailwindcss';
+
+/*
+ * Duel.uz design system
+ * ---------------------
+ * The product's identity is a confrontation: two sides, one badge between them.
+ * Side A owns the violet family, side B the rose family, and the brand gradient
+ * is the collision of the two. Everything else is a quiet neutral so the duel
+ * itself is the only loud thing on screen.
+ *
+ * All colours are semantic tokens that flip with the theme, so components never
+ * need a `dark:` variant for ordinary surfaces and text.
+ */
+
+:root {
+  color-scheme: light;
+
+  --bg: #f7f7fb;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-muted: #f1f1f7;
+  --surface-hover: #ececf5;
+
+  --fg: #14141f;
+  --fg-muted: #5b5b70;
+  --fg-subtle: #8a8a9e;
+
+  --border: #e4e4ee;
+  --border-strong: #d0d0e0;
+
+  --side-a: #6366f1;
+  --side-a-strong: #4338ca;
+  --side-a-soft: #eef0ff;
+  --side-b: #f43f5e;
+  --side-b-strong: #be123c;
+  --side-b-soft: #ffeef1;
+
+  --accent: #6d28d9;
+  --accent-fg: #ffffff;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+
+  --ring: #6366f1;
+  --shadow-card: 0 1px 2px rgb(20 20 31 / 0.05), 0 8px 24px -12px rgb(20 20 31 / 0.12);
+  --shadow-pop: 0 12px 40px -12px rgb(20 20 31 / 0.28);
+
+  --radius-card: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg: #0a0a12;
+    --bg-elevated: #12121c;
+    --surface: #14141f;
+    --surface-muted: #1b1b28;
+    --surface-hover: #23233340;
+
+    --fg: #f3f3f8;
+    --fg-muted: #a0a0b8;
+    --fg-subtle: #6f6f88;
+
+    --border: #262636;
+    --border-strong: #343449;
+
+    --side-a: #818cf8;
+    --side-a-strong: #6366f1;
+    --side-a-soft: #1c1c37;
+    --side-b: #fb7185;
+    --side-b-strong: #f43f5e;
+    --side-b-soft: #331520;
+
+    --accent: #a78bfa;
+    --accent-fg: #14141f;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --danger: #f87171;
+
+    --ring: #818cf8;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-pop: 0 12px 40px -12px rgb(0 0 0 / 0.7);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0a0a12;
+  --bg-elevated: #12121c;
+  --surface: #14141f;
+  --surface-muted: #1b1b28;
+  --surface-hover: #232333;
+
+  --fg: #f3f3f8;
+  --fg-muted: #a0a0b8;
+  --fg-subtle: #6f6f88;
+
+  --border: #262636;
+  --border-strong: #343449;
+
+  --side-a: #818cf8;
+  --side-a-strong: #6366f1;
+  --side-a-soft: #1c1c37;
+  --side-b: #fb7185;
+  --side-b-strong: #f43f5e;
+  --side-b-soft: #331520;
+
+  --accent: #a78bfa;
+  --accent-fg: #14141f;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+
+  --ring: #818cf8;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --shadow-pop: 0 12px 40px -12px rgb(0 0 0 / 0.7);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-hover: var(--surface-hover);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-side-a: var(--side-a);
+  --color-side-a-strong: var(--side-a-strong);
+  --color-side-a-soft: var(--side-a-soft);
+  --color-side-b: var(--side-b);
+  --color-side-b-strong: var(--side-b-strong);
+  --color-side-b-soft: var(--side-b-soft);
+
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --color-ring: var(--ring);
+
+  --font-sans:
+    'Inter var', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+
+  --animate-rise: rise 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade: fade 0.25s ease both;
+  --animate-pop: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* Room for the fixed mobile tab bar. */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  button,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Hide the number spinner and search cancel button for a cleaner UI. */
+  input[type='search']::-webkit-search-cancel-button {
+    appearance: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility brand-gradient {
+  background-image: linear-gradient(115deg, var(--side-a) 0%, var(--accent) 50%, var(--side-b) 100%);
+}
+
+@utility brand-text {
+  background-image: linear-gradient(115deg, var(--side-a) 0%, var(--accent) 55%, var(--side-b) 100%);
+  background-clip: text;
+  color: transparent;
+}
+
+@utility skeleton {
+  background-image: linear-gradient(
+    90deg,
+    var(--surface-muted) 0%,
+    var(--surface-hover) 50%,
+    var(--surface-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
