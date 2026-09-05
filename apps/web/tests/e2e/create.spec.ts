@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { signInAsNewUser } from './helpers';
 
 /** A real 2x2 PNG, so the server's magic-byte check and sharp both accept it. */
 const PNG = Buffer.from(
@@ -7,7 +8,7 @@ const PNG = Buffer.from(
 );
 
 /**
- * Registration is rate limited per IP fingerprint. Each run presents a distinct
+ * Duel creation is rate limited per IP fingerprint. Each run presents a distinct
  * forwarded address so repeated local runs get their own budget instead of
  * tripping the limiter left over from a previous run.
  */
@@ -18,20 +19,13 @@ test.use({
 });
 
 /** The second half of the loop: a voter becomes a creator. */
-test('a new user can register and publish a duel', async ({ page }) => {
+test('a signed-in user can publish a duel', async ({ page, baseURL }) => {
   const stamp = Date.now().toString().slice(-9);
-  const username = `e2e${stamp}`;
 
-  await page.goto('/uz/register');
-  await page.locator('input[name="email"]').fill(`${username}@duel.uz`);
-  await page.locator('input[name="displayName"]').fill('E2E Tester');
-  await page.locator('input[name="username"]').fill(username);
-  await page.locator('input[name="password"]').fill('Duel1234pass');
-  await page.locator('form button[type="submit"]').click();
+  // Telegram sign-in cannot be automated, so the session is seeded directly.
+  await signInAsNewUser(page.context(), baseURL ?? 'http://localhost:3000');
 
-  // Sign-in performs a full navigation, so wait for the home feed to render
-  // before driving the next page.
-  await expect(page).toHaveURL(/\/uz$/, { timeout: 20_000 });
+  await page.goto('/uz');
   await expect(page.locator('[data-testid="duel-card"]').first()).toBeVisible({ timeout: 20_000 });
 
   await page.goto('/uz/create');

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { assertNotSpam, cleanLine, cleanText, countLinks, toSearchText } from '@/lib/sanitize';
+import { createHash, createHmac } from 'node:crypto';
 import { hashIp, sign, unsign } from '@/lib/crypto';
 import { readAnonId, signAnonId } from '@/lib/anon';
 import { detectImageType } from '@/server/uploads/service';
-import { assertStrongPassword, hashPassword, verifyPassword } from '@/server/auth/password';
+import { verifyInitData, verifyWidgetLogin } from '@/server/auth/telegram';
 import { hasRole } from '@/server/auth/guards';
 import { AppError } from '@/lib/errors';
 import { imageLocationSchema } from '@/lib/validation';
@@ -146,29 +147,97 @@ describe('image locations', () => {
   });
 });
 
-describe('passwords', () => {
-  it('rejects weak passwords', () => {
-    expect(() => assertStrongPassword('short1')).toThrow(AppError);
-    expect(() => assertStrongPassword('alllettersonly')).toThrow(AppError);
-    expect(() => assertStrongPassword('12345678')).toThrow(AppError);
-    expect(() => assertStrongPassword('password123')).toThrow(AppError);
+const BOT_TOKEN = '1234567:test-bot-token-for-unit-tests';
+
+/** Signs a payload exactly the way Telegram's Login Widget does. */
+function signWidget(fields: Record<string, string | number>) {
+  const check = Object.keys(fields)
+    .sort()
+    .map((key) => `${key}=${fields[key]}`)
+    .join('\n');
+  const secret = createHash('sha256').update(BOT_TOKEN).digest();
+  return { ...fields, hash: createHmac('sha256', secret).update(check).digest('hex') };
+}
+
+/** Signs a Mini App initData query string the way the Telegram client does. */
+function signInitData(fields: Record<string, string>) {
+  const check = Object.keys(fields)
+    .sort()
+    .map((key) => `${key}=${fields[key]}`)
+    .join('\n');
+  const secret = createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+  const hash = createHmac('sha256', secret).update(check).digest('hex');
+  return new URLSearchParams({ ...fields, hash }).toString();
+}
+
+const now = () => Math.floor(Date.now() / 1000);
+
+describe('telegram sign-in', () => {
+  it('accepts a correctly signed widget payload', () => {
+    const payload = signWidget({
+      id: 4242,
+      first_name: 'Javohir',
+      last_name: 'Hasanov',
+      username: 'javohir',
+      photo_url: 'https://t.me/i/userpic/320/javohir.jpg',
+      auth_date: now(),
+    });
+
+    expect(verifyWidgetLogin(payload as never)).toMatchObject({
+      telegramId: '4242',
+      firstName: 'Javohir',
+      username: 'javohir',
+      photoUrl: 'https://t.me/i/userpic/320/javohir.jpg',
+    });
   });
 
-  it('accepts a reasonable password', () => {
-    expect(() => assertStrongPassword('Duel1234pass')).not.toThrow();
+  it('rejects a payload whose fields were edited after signing', () => {
+    const payload = signWidget({ id: 4242, first_name: 'Javohir', auth_date: now() });
+    // Impersonating another account is the whole attack this prevents.
+    expect(() => verifyWidgetLogin({ ...payload, id: 9999 } as never)).toThrow(AppError);
   });
 
-  it('hashes with argon2id and verifies only the right password', async () => {
-    const digest = await hashPassword('Duel1234pass');
-    expect(digest.startsWith('$argon2id$')).toBe(true);
-    expect(digest).not.toContain('Duel1234pass');
-
-    expect(await verifyPassword(digest, 'Duel1234pass')).toBe(true);
-    expect(await verifyPassword(digest, 'Duel1234pas')).toBe(false);
+  it('rejects a stale login', () => {
+    const payload = signWidget({
+      id: 4242,
+      first_name: 'Javohir',
+      auth_date: now() - 60 * 60,
+    });
+    expect(() => verifyWidgetLogin(payload as never)).toThrow(AppError);
   });
 
-  it('returns false rather than throwing on a malformed digest', async () => {
-    expect(await verifyPassword('not-a-digest', 'anything')).toBe(false);
+  it('drops an avatar that is not hosted by Telegram', () => {
+    const payload = signWidget({
+      id: 4242,
+      first_name: 'Javohir',
+      photo_url: 'https://evil.example/track.png',
+      auth_date: now(),
+    });
+    expect(verifyWidgetLogin(payload as never).photoUrl).toBeNull();
+  });
+
+  it('accepts signed Mini App initData and reads the user out of it', () => {
+    const initData = signInitData({
+      auth_date: String(now()),
+      query_id: 'AAE',
+      user: JSON.stringify({ id: 777, first_name: 'Malika', username: 'malika', language_code: 'ru' }),
+    });
+
+    expect(verifyInitData({ initData })).toMatchObject({
+      telegramId: '777',
+      firstName: 'Malika',
+      username: 'malika',
+      locale: 'ru',
+    });
+  });
+
+  it('rejects initData with a forged hash', () => {
+    const initData = signInitData({
+      auth_date: String(now()),
+      user: JSON.stringify({ id: 777, first_name: 'Malika' }),
+    }).replace(/hash=.*$/, `hash=${'0'.repeat(64)}`);
+
+    expect(() => verifyInitData({ initData })).toThrow(AppError);
   });
 });
 
@@ -198,7 +267,7 @@ describe('rate limiting', () => {
   });
 
   it('keeps IP-keyed budgets generous enough for carrier-grade NAT', () => {
-    expect(RATE_LIMITS.register.limit).toBeGreaterThanOrEqual(20);
-    expect(RATE_LIMITS.login.limit).toBeGreaterThanOrEqual(30);
+    expect(RATE_LIMITS.telegramAuth.limit).toBeGreaterThanOrEqual(30);
+    expect(RATE_LIMITS.vote.limit).toBeGreaterThanOrEqual(60);
   });
 });

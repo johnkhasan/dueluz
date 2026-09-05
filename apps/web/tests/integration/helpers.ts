@@ -1,6 +1,5 @@
 import { prisma } from '@dueluz/db';
 import { hotScore } from '@/server/trending/score';
-import { hashPassword } from '@/server/auth/password';
 
 /** Wipes every table between test files. Safe: this runs against TEST_DATABASE_URL. */
 export async function resetDatabase() {
@@ -32,10 +31,10 @@ export async function makeUser(over: { role?: 'USER' | 'MODERATOR' | 'ADMIN' } =
   userCounter += 1;
   return prisma.user.create({
     data: {
-      email: `user${userCounter}@test.duel.uz`,
+      telegramId: `test-${userCounter}`,
+      telegramUsername: `user${userCounter}`,
       username: `user${userCounter}`,
       displayName: `User ${userCounter}`,
-      passwordHash: await hashPassword('Duel1234pass'),
       role: over.role ?? 'USER',
     },
   });

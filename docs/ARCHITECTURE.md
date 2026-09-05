@@ -60,7 +60,7 @@ which is what keeps the two from drifting.
 
 | Module | Responsibility |
 |---|---|
-| `auth` | registration, login, sessions, password policy, RBAC guards |
+| `auth` | Telegram payload verification, sign-in/account creation, sessions, RBAC guards |
 | `duels` | create/read/update/delete, feeds, search, cursor pagination |
 | `votes` | the transactional vote path |
 | `comments`, `likes`, `reports` | engagement and moderation intake |
@@ -149,5 +149,5 @@ Deliberately present but unused, so adding them later is not a migration:
 - `Notification` model and `AnalyticsEvent` model — schema exists, no MVP UI.
 - `visibility: UNLISTED` — link-only duels already work end to end.
 - `DuelOption.position` — the schema does not assume exactly two options.
-- `auth` is provider-agnostic: `issueSession()` is separate from cookie
-  writing, so a Google or Telegram callback can issue a session directly.
+- `auth` keeps `issueSession()` separate from cookie writing, so a second
+  identity provider beside Telegram can issue a session directly.

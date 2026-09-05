@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { cn, initials } from '@/lib/utils';
 
 /**
@@ -25,22 +28,38 @@ export function Avatar({
   size?: keyof typeof SIZES;
   className?: string;
 }) {
+  // Telegram's `photo_url` points at a t.me CDN path that expires, and a
+  // profile picture can be removed at any time. When the image fails, fall back
+  // to the initials avatar instead of leaving a broken image on the page.
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+
   const classes = cn(
     'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold text-white',
     SIZES[size],
     className,
   );
 
-  if (src) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt="" className={cn(classes, 'object-cover')} loading="lazy" />;
+  if (src && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        className={cn(classes, 'object-cover')}
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    );
   }
 
   const hue = hueFor(name);
   return (
     <span
       className={classes}
-      style={{ background: `linear-gradient(140deg, hsl(${hue} 68% 58%), hsl(${(hue + 40) % 360} 72% 44%))` }}
+      style={{
+        background: `linear-gradient(140deg, hsl(${hue} 68% 58%), hsl(${(hue + 40) % 360} 72% 44%))`,
+      }}
       aria-hidden
     >
       {initials(name)}

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import '../globals.css';
 
 import { I18nProvider } from '@/components/providers/i18n-provider';
+import { MiniAppAuth } from '@/components/providers/mini-app-auth';
 import { SessionProvider } from '@/components/providers/session-provider';
 import { ThemeProvider, type ThemePreference } from '@/components/providers/theme-provider';
 import { ToastProvider } from '@/components/ui/toast';
@@ -98,6 +99,7 @@ export default async function LocaleLayout({ children, params }: LayoutProps) {
               }
             >
               <ToastProvider>
+                {user ? null : <MiniAppAuth />}
                 <a
                   href="#main"
                   className="bg-surface text-fg sr-only rounded-lg px-4 py-2 focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50"

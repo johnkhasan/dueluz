@@ -85,7 +85,8 @@ export async function listUsers(options: { q?: string; cursor?: string; limit?: 
         ? {
             OR: [
               { username: { contains: options.q, mode: 'insensitive' } },
-              { email: { contains: options.q, mode: 'insensitive' } },
+              { telegramUsername: { contains: options.q, mode: 'insensitive' } },
+              { telegramId: { equals: options.q } },
               { displayName: { contains: options.q, mode: 'insensitive' } },
             ],
           }
@@ -103,7 +104,7 @@ export async function listUsers(options: { q?: string; cursor?: string; limit?: 
     take: limit + 1,
     select: {
       id: true,
-      email: true,
+      telegramUsername: true,
       username: true,
       displayName: true,
       avatarUrl: true,

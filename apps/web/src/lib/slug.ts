@@ -62,8 +62,15 @@ export function normaliseUsername(input: string): string {
   return input.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
 }
 
-/** Derives a candidate username from an email local-part. */
-export function usernameFromEmail(email: string): string {
-  const base = normaliseUsername(email.split('@')[0] ?? '') || 'user';
+/**
+ * Derives a candidate username from a Telegram profile.
+ *
+ * Telegram handles already share our alphabet, so they usually survive intact;
+ * a user without one falls back to their transliterated first name. The result
+ * is only a candidate — the caller still has to resolve collisions.
+ */
+export function usernameFromTelegram(handle: string | null, firstName: string): string {
+  const base =
+    normaliseUsername(handle ?? '') || normaliseUsername(slugify(firstName, 20)) || 'duelist';
   return base.slice(0, 14).padEnd(3, '0');
 }

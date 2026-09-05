@@ -25,22 +25,50 @@ const servedOverHttps = (process.env.NEXT_PUBLIC_APP_URL ?? '').startsWith('http
  * `unsafe-inline` for styles is required by Next's inlined critical CSS;
  * `unsafe-eval` is dev-only (React Refresh).
  */
-const csp = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
-  `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}`,
-  "frame-ancestors 'none'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  ...(servedOverHttps ? ['upgrade-insecure-requests'] : []),
-].join('; ');
+/**
+ * Telegram sign-in is the only way into the product, and the login widget is a
+ * third-party script that renders an iframe from oauth.telegram.org. Both
+ * origins have to be allowed or nobody can sign in: the widget is blocked
+ * silently and the page just shows an empty box.
+ */
+const TELEGRAM_SCRIPT_ORIGIN = 'https://telegram.org';
+const TELEGRAM_FRAME_ORIGIN = 'https://oauth.telegram.org';
+
+/**
+ * `telegram-widget.js` evaluates strings as JavaScript, so the login page
+ * additionally needs 'unsafe-eval'. That relaxation is confined to that one
+ * route: it renders no user-generated content, while every page that does —
+ * feeds, duels, comments, admin — keeps the strict policy.
+ */
+function buildCsp({ allowEval }: { allowEval: boolean }): string {
+  const scriptSrc = [
+    "'self'",
+    "'unsafe-inline'",
+    TELEGRAM_SCRIPT_ORIGIN,
+    ...(allowEval || isDev ? ["'unsafe-eval'"] : []),
+  ].join(' ');
+
+  return [
+    "default-src 'self'",
+    `script-src ${scriptSrc}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    `connect-src 'self' ${TELEGRAM_SCRIPT_ORIGIN}${isDev ? ' ws: http://localhost:*' : ''}`,
+    `frame-src ${TELEGRAM_FRAME_ORIGIN} ${TELEGRAM_SCRIPT_ORIGIN}`,
+    // What may frame this site; the directive above is what this site may frame.
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    ...(servedOverHttps ? ['upgrade-insecure-requests'] : []),
+  ].join('; ');
+}
+
+const csp = buildCsp({ allowEval: false });
+const loginCsp = buildCsp({ allowEval: true });
 
 const securityHeaders = [
-  { key: 'Content-Security-Policy', value: csp },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
@@ -54,8 +82,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Traced, self-contained server bundle for the container image.
+  output: 'standalone',
   transpilePackages: ['@dueluz/db'],
-  serverExternalPackages: ['@node-rs/argon2', 'sharp', 'ioredis'],
+  serverExternalPackages: ['sharp', 'ioredis'],
   outputFileTracingRoot: repoRoot,
   images: {
     remotePatterns: [{ protocol: 'https', hostname: '**' }],
@@ -65,7 +95,19 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react'],
   },
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    return [
+      {
+        source: '/:locale(uz|ru|en)/login',
+        headers: [...securityHeaders, { key: 'Content-Security-Policy', value: loginCsp }],
+      },
+      {
+        // Everything except the login page. The negative lookahead matters:
+        // if both rules matched, the browser would receive two CSP headers and
+        // enforce their intersection, which is the strict one.
+        source: '/((?!(?:uz|ru|en)/login$).*)',
+        headers: [...securityHeaders, { key: 'Content-Security-Policy', value: csp }],
+      },
+    ];
   },
 };
 

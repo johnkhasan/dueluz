@@ -8,24 +8,37 @@ requirement. The realistic adversaries are:
 1. **Vote stuffers** — inflating a duel's result.
 2. **Spammers** — link farms in comments and duel titles.
 3. **Abusive uploaders** — using image upload as a stored-XSS or malware vector.
-4. **Account takeover** — credential stuffing against a leaked password list.
+4. **Account takeover** — forging a sign-in payload to become another user.
 5. **Privilege escalation** — a normal user reaching moderator endpoints.
 
 ## Authentication
 
-- **Passwords**: argon2id (`@node-rs/argon2`), 19 MiB memory / 2 iterations,
-  OWASP-recommended parameters. Memory-hard, so a leaked table is expensive to
-  crack on GPUs.
-- **Policy**: minimum 8 characters, must mix letters and digits, common
-  passwords rejected. Length carries the strength; the class rule only rules out
-  the trivial cases.
-- **Login timing**: an unknown email is verified against a real argon2 digest
-  generated once per process, so a missing account and a wrong password take the
-  same time and cannot be told apart.
+Sign-in is Telegram-only. The app stores no password and no credential of any
+kind, so there is nothing to leak, stuff or reset: the entire class of
+password-handling risk is out of scope by construction.
+
+- **Two entry points**, both verified by `server/auth/telegram.ts`:
+  the website **Login Widget** (signing key `SHA-256(bot token)`) and a
+  **Mini App**'s `initData` (signing key `HMAC-SHA256("WebAppData", bot token)`).
+- **The payload is attacker-controlled** until the HMAC matches — it arrives via
+  the browser. Verification rebuilds the data-check string from *every* field
+  received (unknown fields included, which is why the schema keeps them rather
+  than stripping them), compares the digest with `timingSafeEqual`, and only
+  then parses anything out of it.
+- **Freshness**: a widget payload older than 15 minutes and `initData` older
+  than 24 hours are rejected, which bounds replay of a captured payload.
+- **Avatar URLs** from Telegram are accepted only on `t.me` / `*.telegram.org`,
+  so a forged payload could not point every profile picture at a third party.
+- **Bot token** is the signing key for all of the above. It is a secret on the
+  same footing as `SESSION_SECRET` and is never sent to the browser. Without it
+  the app still serves browsing and anonymous voting, but sign-in fails closed:
+  the login page says so, `/api/auth/telegram` refuses to run, and production
+  start-up logs the misconfiguration.
 - **Sessions**: opaque random 256-bit tokens. The database stores only
   `SHA-256(token)` — a database leak cannot be replayed as a login. Sessions are
-  revocable (ban, password change, "log out everywhere") which a stateless JWT
-  would not be.
+  revocable (ban, "log out everywhere") which a stateless JWT would not be.
+- **Bans are re-checked at sign-in**, not only on the session path: signing in
+  again is exactly how a banned user would try to return.
 - **Cookie**: `httpOnly`, `sameSite=lax`, 30 days. The `Secure` flag is keyed
   to whether `NEXT_PUBLIC_APP_URL` is https, not to `NODE_ENV`: a `Secure`
   cookie is silently dropped by the browser over plain http, so tying it to the
@@ -179,7 +192,11 @@ degrading. `.env` is gitignored; only `.env.example` is committed, and
   detectable after the fact.
 - **In-process rate limiting** — without Redis, limits are per-instance. Deploy
   Redis before running more than one replica.
-- **No email verification** — an unverified address cannot be used for password
-  reset, so reset is not offered in the MVP.
+- **Telegram is a single point of failure** — losing access to a Telegram
+  account means losing access to the Duel.uz account, and there is no recovery
+  path. Accepted: the alternative is a password database, which is the risk this
+  design removes.
+- **The Login Widget needs a registered domain** — BotFather's `/setdomain` does
+  not accept `localhost`, so local sign-in testing needs a tunnel.
 - **`x-forwarded-for` is trusted** — correct only behind a reverse proxy that
   overwrites it. Ensure nginx sets `proxy_set_header X-Forwarded-For $remote_addr`.

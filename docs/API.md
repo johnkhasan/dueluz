@@ -27,10 +27,10 @@ Mutating requests must send an `Origin` header matching the app's own origin.
 | `NOT_FOUND` | 404 | Generic missing resource |
 | `RATE_LIMITED` | 429 | Budget exhausted (`details.retryAfter` in seconds) |
 | `CSRF_FAILED` | 403 | Cross-origin mutation rejected |
-| `INVALID_CREDENTIALS` | 401 | Wrong email or password |
-| `EMAIL_TAKEN` / `USERNAME_TAKEN` | 409 | Already registered |
+| `INVALID_CREDENTIALS` | 401 | Telegram payload failed signature verification |
+| `SESSION_EXPIRED` | 401 | Telegram payload is too old to accept |
+| `USERNAME_TAKEN` | 409 | Could not allocate a free username |
 | `ACCOUNT_BANNED` | 403 | Account suspended |
-| `WEAK_PASSWORD` | 422 | Fails the password policy |
 | `DUEL_NOT_FOUND` | 404 | Missing, hidden or deleted duel |
 | `DUEL_NOT_PUBLISHED` | 404 | Duel exists but is not open for voting |
 | `OPTION_NOT_FOUND` | 404 | Option does not belong to this duel |
@@ -42,12 +42,18 @@ Mutating requests must send an `Origin` header matching the app's own origin.
 
 ## Auth
 
+Sign-in is Telegram-only, and it is one endpoint: an unknown Telegram id creates
+the account, a known one signs it in. There is no separate registration call.
+
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| POST | `/auth/register` | — | `{ email, username, displayName, password, locale? }`. Sets the session cookie. |
-| POST | `/auth/login` | — | `{ email, password }` |
+| POST | `/auth/telegram` | — | `{ source: "widget", payload }` (the Login Widget's `data-onauth` object, verbatim) or `{ source: "miniapp", initData }` (the Mini App's `window.Telegram.WebApp.initData` string). Sets the session cookie. |
 | POST | `/auth/logout` | session | Revokes the session server-side |
 | GET | `/auth/me` | — | `{ user }` or `{ user: null }` |
+
+The payload must be relayed **unmodified** — reordering is fine, but dropping,
+adding or rewriting a field invalidates Telegram's HMAC and the request is
+rejected with `INVALID_CREDENTIALS`.
 
 ## Duels
 
@@ -82,7 +88,6 @@ Mutating requests must send an `Origin` header matching the app's own origin.
 | POST | `/uploads` | user | `multipart/form-data`: `file`, `kind=duel\|avatar` → `{ upload: { url, key } }` |
 | POST | `/events` | — | `{ name, duelId?, locale?, props? }` |
 | PATCH | `/me/profile` | user | `{ displayName?, bio?, locale?, avatarUrl? }` |
-| POST | `/me/password` | user | `{ currentPassword, newPassword }` — revokes all sessions |
 
 ## Admin
 

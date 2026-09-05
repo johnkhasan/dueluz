@@ -3,7 +3,14 @@ import { prisma } from '@dueluz/db';
 import { APP_URL } from '@/lib/env';
 import { locales } from '@/lib/i18n/config';
 
-export const revalidate = 3600;
+/**
+ * Generated per request rather than at build time.
+ *
+ * The sitemap lists live duels, so prerendering it would both freeze the list
+ * at build time and require a reachable database during `docker build`.
+ * Crawlers fetch this a handful of times a day, so the query cost is nil.
+ */
+export const dynamic = 'force-dynamic';
 
 /** Cap so the sitemap stays inside the 50k-URL / 50MB limits. */
 const MAX_DUELS = 10_000;

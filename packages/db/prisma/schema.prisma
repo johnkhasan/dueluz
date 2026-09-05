@@ -87,22 +87,28 @@ enum NotificationType {
 // Identity
 // ---------------------------------------------------------------------------
 
+/// Identity is a Telegram account: `telegramId` is the login handle and the
+/// only credential the app ever sees. It is nullable so accounts that predate
+/// Telegram-only sign-in (and future service accounts) can still exist — such a
+/// row simply has no way to sign in until it is linked. `email` survives as an
+/// optional contact field for the same reason.
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
-  username     String     @unique
-  displayName  String     @map("display_name")
-  passwordHash String     @map("password_hash")
-  avatarUrl    String?    @map("avatar_url")
-  avatarKey    String?    @map("avatar_key")
-  bio          String?    @db.VarChar(280)
-  locale       String     @default("uz") @db.VarChar(5)
-  role         Role       @default(USER)
-  status       UserStatus @default(ACTIVE)
-  bannedUntil  DateTime?  @map("banned_until")
-  banReason    String?    @map("ban_reason")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  id               String     @id @default(cuid())
+  telegramId       String?    @unique @map("telegram_id")
+  telegramUsername String?    @map("telegram_username")
+  email            String?    @unique
+  username         String     @unique
+  displayName      String     @map("display_name")
+  avatarUrl        String?    @map("avatar_url")
+  avatarKey        String?    @map("avatar_key")
+  bio              String?    @db.VarChar(280)
+  locale           String     @default("uz") @db.VarChar(5)
+  role             Role       @default(USER)
+  status           UserStatus @default(ACTIVE)
+  bannedUntil      DateTime?  @map("banned_until")
+  banReason        String?    @map("ban_reason")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
 
   sessions      Session[]
   duels         Duel[]

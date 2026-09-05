@@ -26,8 +26,22 @@ pnpm db:seed                  # 12 categories, 6 users, ~36 duels with activity
 pnpm dev                      # http://localhost:3000
 ```
 
-Seeded admin: `admin@duel.uz` / `Admin123!duel`
-Seeded members: `javohir@duel.uz`, `malika@duel.uz`, … / `Demo1234`
+### Telegram sign-in
+
+Sign-in is Telegram-only — there is no password anywhere in the app. Set up a
+bot once with [@BotFather](https://t.me/BotFather):
+
+1. `/newbot` → put the token in `TELEGRAM_BOT_TOKEN` and the bot's handle in
+   `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` (no `@`).
+2. `/setdomain` → the host of `NEXT_PUBLIC_APP_URL`. **`localhost` is not
+   accepted**, so testing sign-in locally needs a tunnel (ngrok, Cloudflare
+   Tunnel) with both `NEXT_PUBLIC_APP_URL` and `/setdomain` pointed at it.
+3. Put your own numeric Telegram id (ask [@userinfobot](https://t.me/userinfobot))
+   in `SEED_ADMIN_TELEGRAM_ID` and re-run `pnpm db:seed` — your first sign-in
+   then lands on the ADMIN account.
+
+Everything except signing in works without a bot: browsing, anonymous voting and
+the whole seeded dataset.
 
 Redis is optional — without it the app falls back to an in-process rate limiter
 and cache. Do not run more than one replica that way.
@@ -59,12 +73,16 @@ DATABASE_URL="postgresql://dueluz:dueluz@localhost:5434/dueluz_test?schema=publi
 
 Next.js 15 (App Router) · React 19 · TypeScript (strict, no `any`) ·
 Tailwind CSS v4 · PostgreSQL 16 + Prisma 6 · Redis 7 (optional) · Zod ·
-argon2id · Vitest · Playwright.
+Telegram Login Widget / Mini App · Vitest · Playwright.
 
 ## Features
 
 **Voting** — anonymous or signed in, one vote per duel per identity enforced by
 a database constraint, results revealed the instant you vote.
+
+**Accounts** — one-tap Telegram sign-in, and no sign-in at all inside Telegram:
+opened as a Mini App, the session is established from the identity the client
+already provides. No passwords are stored, so none can leak.
 
 **Discovery** — trending / new / popular feeds with keyset pagination, category
 filters, trigram search across titles, option names and categories.
@@ -136,5 +154,5 @@ service and wrap the result. Components never touch Prisma.
 ## Not in the MVP
 
 Followers, XP/badges/leaderboards, notification UI, monetisation, AI summaries,
-more than two options per duel, changing a vote, threaded comments, OAuth.
-The schema and the auth module leave room for each.
+more than two options per duel, changing a vote, threaded comments, a second
+identity provider. The schema and the auth module leave room for each.

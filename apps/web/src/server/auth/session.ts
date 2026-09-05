@@ -6,7 +6,10 @@ import { useSecureCookies } from '@/lib/env';
 
 export type SessionUser = {
   id: string;
-  email: string;
+  /** Telegram accounts carry no email; only pre-Telegram rows have one. */
+  email: string | null;
+  /** Current Telegram handle, refreshed on every sign-in. Null if they have none. */
+  telegramUsername: string | null;
   username: string;
   displayName: string;
   avatarUrl: string | null;
@@ -20,6 +23,7 @@ export type SessionUser = {
 const USER_SELECT = {
   id: true,
   email: true,
+  telegramUsername: true,
   username: true,
   displayName: true,
   avatarUrl: true,
@@ -108,6 +112,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   return {
     id: user.id,
     email: user.email,
+    telegramUsername: user.telegramUsername,
     username: user.username,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,

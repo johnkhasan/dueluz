@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatCount, formatDate, formatRelativeTime, votePercentages } from '@/lib/utils';
 import { decodeCursor, encodeCursor, paginate } from '@/lib/cursor';
-import { buildDuelSlug, normaliseUsername, slugify, usernameFromEmail } from '@/lib/slug';
+import { buildDuelSlug, normaliseUsername, slugify, usernameFromTelegram } from '@/lib/slug';
 
 describe('votePercentages', () => {
   it('always sums to exactly 100', () => {
@@ -125,8 +125,11 @@ describe('usernames', () => {
     expect(normaliseUsername('  Javohir.Hasanov! ')).toBe('javohirhasanov');
   });
 
-  it('derives a usable username from an email', () => {
-    expect(usernameFromEmail('javohir.hasanov@duel.uz')).toBe('javohirhasanov');
-    expect(usernameFromEmail('!!!@duel.uz')).toBe('user');
+  it('derives a usable username from a Telegram profile', () => {
+    expect(usernameFromTelegram('Javohir_Hasanov', 'Javohir')).toBe('javohir_hasano');
+    // No handle: fall back to the transliterated first name.
+    expect(usernameFromTelegram(null, 'Малика')).toBe('malika');
+    // Neither survives normalisation.
+    expect(usernameFromTelegram(null, '🙂')).toBe('duelist');
   });
 });

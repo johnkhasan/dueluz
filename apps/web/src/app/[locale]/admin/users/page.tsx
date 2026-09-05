@@ -61,7 +61,9 @@ export default async function AdminUsers({
                   {user.status === 'BANNED' ? <Badge tone="danger">BANNED</Badge> : null}
                 </div>
                 <p className="text-fg-subtle truncate text-xs">
-                  @{user.username} · {user.email} · {formatDate(user.createdAt, locale)}
+                  @{user.username}
+                  {user.telegramUsername ? ` · tg:@${user.telegramUsername}` : ''} ·{' '}
+                  {formatDate(user.createdAt, locale)}
                 </p>
                 <p className="text-fg-muted text-xs font-semibold">
                   {user._count.duels} {t.admin.duels} · {user._count.votes} {t.duel.votes} ·{' '}

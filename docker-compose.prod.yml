@@ -1,0 +1,104 @@
+# Duel.uz production stack.
+#
+# Postgres and Redis stay on the project's private network and publish no
+# ports. Only the web container is additionally attached to `hsbch_default`,
+# which is where the shared nginx reverse proxy lives, so it can be reached at
+# `dueluz-web:3000` and nowhere else.
+
+name: dueluz
+
+services:
+  web:
+    build:
+      context: .
+      target: runner
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Duel.uz}
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}
+    image: dueluz-web:latest
+    container_name: dueluz-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://dueluz:${POSTGRES_PASSWORD}@postgres:5432/dueluz?schema=public
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: ${SESSION_SECRET}
+      ANON_SECRET: ${ANON_SECRET}
+      IP_SALT: ${IP_SALT}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Duel.uz}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}
+      STORAGE_DRIVER: local
+      LOCAL_STORAGE_DIR: /app/apps/web/public/uploads
+      LOCAL_STORAGE_PUBLIC_PATH: /uploads
+    volumes:
+      - uploads:/app/apps/web/public/uploads
+    networks:
+      - internal
+      - proxy
+
+  migrate:
+    build:
+      context: .
+      target: migrator
+    image: dueluz-migrator:latest
+    profiles: ['tools']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://dueluz:${POSTGRES_PASSWORD}@postgres:5432/dueluz?schema=public
+      SEED_ADMIN_TELEGRAM_ID: ${SEED_ADMIN_TELEGRAM_ID}
+    networks:
+      - internal
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: dueluz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dueluz
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: dueluz
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U dueluz -d dueluz']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: dueluz-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - internal
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+
+networks:
+  internal:
+  proxy:
+    external: true
+    name: hsbch_default

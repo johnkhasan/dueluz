@@ -9,7 +9,14 @@ import type { StorageAdapter, StoredFile } from './types';
  */
 export class LocalStorage implements StorageAdapter {
   readonly name = 'local' as const;
-  private readonly root = resolve(process.cwd(), '..', '..', env.LOCAL_STORAGE_DIR);
+
+  /**
+   * Absolute paths are used as given; a relative path is resolved against the
+   * working directory. The previous form hard-coded a `../..` hop out of
+   * `apps/web`, which silently wrote to the wrong place anywhere the process
+   * did not start from that directory - a standalone container, for instance.
+   */
+  private readonly root = resolve(env.LOCAL_STORAGE_DIR);
   private readonly publicPath = env.LOCAL_STORAGE_PUBLIC_PATH.replace(/\/$/, '');
 
   /** Rejects keys that would escape the storage root. */

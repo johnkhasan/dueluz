@@ -75,14 +75,27 @@ because the ranking formula's age term is additive — see
 ### Sessions, not JWTs
 
 `Session.tokenHash` stores `SHA-256(token)`. Server-side sessions are revocable,
-which bans, password changes and "log out everywhere" all depend on. A
-stateless JWT would keep working until it expired.
+which bans and "log out everywhere" both depend on. A stateless JWT would keep
+working until it expired.
 
 ### Reports
 
 Not polymorphic: `targetType` plus nullable `duelId` / `commentId`, with a
 `CHECK` that the pair matches the type. This keeps real foreign keys (and
 cascade deletes) that a generic `(target_type, target_id)` pair would lose.
+
+### Identity is a Telegram account
+
+`User.telegramId` is the login handle and the only credential the app holds —
+there is no password column. It is nullable so an account can exist without a
+Telegram link (rows predating Telegram-only sign-in, and the seeded demo
+accounts); such a row simply has no way to sign in. `email` is nullable for the
+same reason: Telegram never gives us one.
+
+`telegramUsername` is a mirror of the handle, refreshed on every sign-in because
+Telegram lets a user change or drop it at any time. It is *not* the account's
+`username`: that one is allocated once, from the handle, and then belongs to the
+user because their profile URL depends on it.
 
 ### Case-insensitive identity
 
@@ -104,7 +117,8 @@ Unique indexes on `lower(email)` and `lower(username)` prevent `Javohir` and
 | `votes` | `(user_id, created_at DESC)` | profile vote stats |
 | `comments` | `(duel_id, status, created_at DESC)` | comment list |
 | `reports` | `(status, created_at DESC)` | moderation queue |
-| `users` | `lower(email)`, `lower(username)` unique | login, profile URLs |
+| `users` | `telegram_id` unique | sign-in lookup |
+| `users` | `lower(email)`, `lower(username)` unique | profile URLs |
 | `analytics_events` | `(name, created_at DESC)` | admin daily series |
 
 ## Slugs

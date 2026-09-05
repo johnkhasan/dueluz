@@ -7,14 +7,11 @@
  *
  * Safe to re-run: every write is an upsert or is skipped when data exists.
  */
-import { hash } from '@node-rs/argon2';
 import { PrismaClient, type Prisma } from '@prisma/client';
 // Single source of truth for the ranking formula.
 import { hotScore } from '../../../apps/web/src/server/trending/score';
 
 const prisma = new PrismaClient();
-
-const ARGON = { memoryCost: 19_456, timeCost: 2, parallelism: 1 } as const;
 
 const CATEGORIES = [
   { slug: 'technology', nameUz: 'Texnologiya', nameRu: 'Технологии', nameEn: 'Technology', emoji: '💻', color: '#6366f1' },
@@ -31,12 +28,17 @@ const CATEGORIES = [
   { slug: 'other', nameUz: 'Boshqa', nameRu: 'Другое', nameEn: 'Other', emoji: '✨', color: '#64748b' },
 ];
 
+/**
+ * Demo accounts. Their `telegramId`s are deliberately far outside the range
+ * Telegram allocates, so a real Telegram user can never collide with one and
+ * inherit a seeded account.
+ */
 const USERS = [
-  { username: 'javohir', displayName: 'Javohir Hasanov', email: 'javohir@duel.uz', bio: 'Duel.uz asoschisi. Texnologiya va futbol.' },
-  { username: 'malika', displayName: 'Malika Yusupova', email: 'malika@duel.uz', bio: 'Kino va musiqa haqida bahslashishni yaxshi ko\'raman.' },
-  { username: 'sardor', displayName: 'Sardor Rahimov', email: 'sardor@duel.uz', bio: 'Gamer. PC master race.' },
-  { username: 'nilufar', displayName: 'Nilufar Karimova', email: 'nilufar@duel.uz', bio: 'Sayohat, ovqat, hayot.' },
-  { username: 'bekzod', displayName: 'Bekzod Tursunov', email: 'bekzod@duel.uz', bio: 'Avtomobillar va sport.' },
+  { username: 'javohir', displayName: 'Javohir Hasanov', telegramId: 'seed-1', telegramUsername: 'javohir', bio: 'Duel.uz asoschisi. Texnologiya va futbol.' },
+  { username: 'malika', displayName: 'Malika Yusupova', telegramId: 'seed-2', telegramUsername: 'malika', bio: 'Kino va musiqa haqida bahslashishni yaxshi ko\'raman.' },
+  { username: 'sardor', displayName: 'Sardor Rahimov', telegramId: 'seed-3', telegramUsername: 'sardor', bio: 'Gamer. PC master race.' },
+  { username: 'nilufar', displayName: 'Nilufar Karimova', telegramId: 'seed-4', telegramUsername: 'nilufar', bio: 'Sayohat, ovqat, hayot.' },
+  { username: 'bekzod', displayName: 'Bekzod Tursunov', telegramId: 'seed-5', telegramUsername: 'bekzod', bio: 'Avtomobillar va sport.' },
 ];
 
 type DuelSeed = {
@@ -139,18 +141,22 @@ async function main() {
   console.log(`  categories: ${categories.size}`);
 
   // --- users --------------------------------------------------------------
-  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@duel.uz';
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin123!duel';
-  const demoPassword = await hash('Demo1234', ARGON);
+  // Sign-in is Telegram-only, so the admin account is claimed by Telegram id
+  // rather than by a seeded password. Set SEED_ADMIN_TELEGRAM_ID to your own id
+  // (@userinfobot tells you what it is) and the first login lands on ADMIN.
+  // `|| undefined`, not `?.trim()` alone: the shipped .env sets it to an empty
+  // string, which must not become an empty telegram id.
+  const adminTelegramId = process.env.SEED_ADMIN_TELEGRAM_ID?.trim() || undefined;
 
+  // Keyed by username, not by Telegram id: re-seeding must also re-point an
+  // account that already exists under a different (or missing) id.
   const admin = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: { role: 'ADMIN' },
+    where: { username: 'admin' },
+    update: { role: 'ADMIN', telegramId: adminTelegramId ?? 'seed-admin' },
     create: {
-      email: adminEmail,
+      telegramId: adminTelegramId ?? 'seed-admin',
       username: 'admin',
       displayName: 'Duel.uz Admin',
-      passwordHash: await hash(adminPassword, ARGON),
       role: 'ADMIN',
       bio: 'Platforma moderatori.',
     },
@@ -160,13 +166,15 @@ async function main() {
   for (const user of USERS) {
     users.push(
       await prisma.user.upsert({
-        where: { email: user.email },
-        update: {},
-        create: { ...user, passwordHash: demoPassword },
+        where: { username: user.username },
+        update: { telegramId: user.telegramId, telegramUsername: user.telegramUsername },
+        create: user,
       }),
     );
   }
-  console.log(`  users: ${users.length} (admin: ${adminEmail} / ${adminPassword})`);
+  console.log(
+    `  users: ${users.length} (admin telegram id: ${adminTelegramId ?? 'unset - set SEED_ADMIN_TELEGRAM_ID to claim it'})`,
+  );
 
   // --- duels --------------------------------------------------------------
   if ((await prisma.duel.count()) > 0) {

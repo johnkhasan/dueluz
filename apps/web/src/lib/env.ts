@@ -17,7 +17,8 @@ const schema = z.object({
   IP_SALT: z.string().min(32, 'IP_SALT must be at least 32 characters'),
 
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
-  LOCAL_STORAGE_DIR: z.string().default('./apps/web/public/uploads'),
+  /** Absolute, or relative to the server's working directory. */
+  LOCAL_STORAGE_DIR: z.string().default('./public/uploads'),
   LOCAL_STORAGE_PUBLIC_PATH: z.string().default('/uploads'),
   S3_ENDPOINT: z.string().optional(),
   S3_REGION: z.string().default('auto'),
@@ -32,6 +33,16 @@ const schema = z.object({
 
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
   NEXT_PUBLIC_APP_NAME: z.string().default('Duel.uz'),
+
+  // Sign-in is Telegram-only. Optional here so `pnpm test` and a first
+  // `pnpm dev` boot before a bot exists; production is checked below and the
+  // login endpoint refuses to run without a token.
+  TELEGRAM_BOT_TOKEN: z.string().optional().or(z.literal('')),
+  NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .transform((value) => value?.replace(/^@/, '') ?? ''),
 });
 
 function parseEnv() {
@@ -55,6 +66,29 @@ function parseEnv() {
       throw new Error(`STORAGE_DRIVER=s3 requires: ${missing.join(', ')}`);
     }
   }
+
+  // Nobody can sign in without these, so a production deploy that is missing
+  // them is a real misconfiguration — but not a fatal one. Throwing here would
+  // take down browsing and anonymous voting too, which work perfectly well
+  // without a bot; the site would 500 on every request because sign-in is
+  // unconfigured. Sign-in itself still fails closed: the login page says it is
+  // not configured and `/api/auth/telegram` refuses to run.
+  //
+  // Skipped during `next build`, which also runs as NODE_ENV=production and has
+  // no business holding the bot token.
+  const building = process.env.NEXT_PHASE === 'phase-production-build';
+  if (value.NODE_ENV === 'production' && !building) {
+    const missing = (['TELEGRAM_BOT_TOKEN', 'NEXT_PUBLIC_TELEGRAM_BOT_USERNAME'] as const).filter(
+      (key) => !value[key],
+    );
+    if (missing.length > 0) {
+      console.error(
+        `[env] Telegram sign-in is DISABLED - missing: ${missing.join(', ')}. ` +
+          'Nobody can log in until these are set.',
+      );
+    }
+  }
+
   return value;
 }
 
@@ -78,3 +112,6 @@ export const APP_NAME = env.NEXT_PUBLIC_APP_NAME;
  * app's public URL is https) while an http deployment stays functional.
  */
 export const useSecureCookies = APP_URL.startsWith('https://');
+
+/** Bot username the Login Widget is rendered for. Empty until a bot is set up. */
+export const TELEGRAM_BOT_USERNAME = env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;

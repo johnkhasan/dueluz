@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardBody, CardTitle } from '@/components/ui/card';
 import { Input, Textarea } from '@/components/ui/field';
@@ -10,7 +11,7 @@ import { useI18n } from '@/components/providers/i18n-provider';
 import { useToast } from '@/components/ui/toast';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { LocaleSwitcher } from '@/components/layout/locale-switcher';
-import { ApiClientError, apiPatch, apiPost } from '@/lib/client/api';
+import { ApiClientError, apiPatch } from '@/lib/client/api';
 import { ImageUpload, type UploadedImage } from './image-upload';
 
 type Props = {
@@ -20,6 +21,8 @@ type Props = {
     displayName: string;
     bio: string | null;
     avatarUrl: string | null;
+    /** The Telegram handle this account signs in with, when it has one. */
+    telegramUsername: string | null;
   };
 };
 
@@ -35,10 +38,6 @@ export function SettingsForm({ user }: Props) {
   );
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
-
-  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '' });
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
 
   async function saveProfile(event: React.FormEvent) {
     event.preventDefault();
@@ -63,29 +62,6 @@ export function SettingsForm({ user }: Props) {
       }
     } finally {
       setSavingProfile(false);
-    }
-  }
-
-  async function savePassword(event: React.FormEvent) {
-    event.preventDefault();
-    setSavingPassword(true);
-    setPasswordErrors({});
-
-    try {
-      await apiPost('/api/me/password', passwords);
-      show(t.settings.passwordChanged, 'success');
-      // Every session was revoked, including this one.
-      router.push('/');
-      router.refresh();
-    } catch (error) {
-      if (error instanceof ApiClientError) {
-        setPasswordErrors(error.fieldErrors);
-        show(errorMessage(error.code, error.message), 'error');
-      } else {
-        show(errorMessage(undefined), 'error');
-      }
-    } finally {
-      setSavingPassword(false);
     }
   }
 
@@ -153,40 +129,18 @@ export function SettingsForm({ user }: Props) {
       </Card>
 
       <Card>
-        <CardBody>
-          <form onSubmit={savePassword} className="space-y-4">
-            <CardTitle>{t.settings.security}</CardTitle>
-
-            <Input
-              type="password"
-              autoComplete="current-password"
-              label={t.settings.currentPassword}
-              value={passwords.currentPassword}
-              error={passwordErrors.currentPassword}
-              required
-              onChange={(event) =>
-                setPasswords((current) => ({ ...current, currentPassword: event.target.value }))
-              }
-            />
-            <Input
-              type="password"
-              autoComplete="new-password"
-              label={t.settings.newPassword}
-              hint={t.auth.passwordHint}
-              value={passwords.newPassword}
-              error={passwordErrors.newPassword}
-              required
-              onChange={(event) =>
-                setPasswords((current) => ({ ...current, newPassword: event.target.value }))
-              }
-            />
-
-            <p className="text-fg-subtle text-xs">{t.settings.logoutEverywhere}</p>
-
-            <Button type="submit" variant="secondary" loading={savingPassword}>
-              {t.settings.changePassword}
-            </Button>
-          </form>
+        <CardBody className="space-y-3">
+          <CardTitle>{t.settings.security}</CardTitle>
+          <div className="text-fg-muted flex items-center gap-2 text-sm">
+            <Send className="text-accent size-4 shrink-0" />
+            <span>
+              {t.settings.telegramLinked}
+              {user.telegramUsername ? (
+                <span className="text-fg font-semibold"> @{user.telegramUsername}</span>
+              ) : null}
+            </span>
+          </div>
+          <p className="text-fg-subtle text-xs">{t.settings.telegramLinkedHint}</p>
         </CardBody>
       </Card>
     </div>

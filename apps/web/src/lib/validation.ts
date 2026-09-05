@@ -6,16 +6,6 @@ import { z } from 'zod';
  * re-validates: client-side validation is a UX affordance, not a control.
  */
 
-export const emailSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .min(5, 'Email is too short')
-  .max(160)
-  .email('Enter a valid email address');
-
-export const passwordSchema = z.string().min(8, 'At least 8 characters').max(128);
-
 export const usernameSchema = z
   .string()
   .trim()
@@ -26,20 +16,43 @@ export const usernameSchema = z
 
 export const displayNameSchema = z.string().trim().min(2, 'At least 2 characters').max(40);
 
-export const registerSchema = z.object({
-  email: emailSchema,
-  username: usernameSchema,
-  displayName: displayNameSchema,
-  password: passwordSchema,
-  locale: z.enum(['uz', 'ru', 'en']).optional(),
-});
-export type RegisterInput = z.infer<typeof registerSchema>;
+// ---------------------------------------------------------------------------
+// Telegram sign-in
+// ---------------------------------------------------------------------------
 
-export const loginSchema = z.object({
-  email: emailSchema,
-  password: z.string().min(1, 'Enter your password').max(128),
+/**
+ * Login Widget payload, exactly as Telegram hands it to `data-onauth`.
+ *
+ * `catchall` rather than the default strip: Telegram signs every field it
+ * sends, so a field added to the widget in future must survive validation or
+ * the HMAC over the payload would no longer match. Unknown fields are confined
+ * to primitives so they can be folded into the data-check string verbatim.
+ */
+export const telegramWidgetSchema = z
+  .object({
+    id: z.number().int().positive(),
+    first_name: z.string().min(1).max(200),
+    last_name: z.string().max(200).optional(),
+    username: z.string().max(64).optional(),
+    photo_url: z.string().max(500).optional(),
+    auth_date: z.number().int().positive(),
+    hash: z.string().regex(/^[a-fA-F0-9]{64}$/, 'Malformed Telegram signature'),
+  })
+  .catchall(z.union([z.string(), z.number(), z.boolean()]));
+export type TelegramWidgetInput = z.infer<typeof telegramWidgetSchema>;
+
+/** Mini App `window.Telegram.WebApp.initData` — an already-signed query string. */
+export const telegramInitDataSchema = z.object({
+  initData: z.string().min(1).max(4096),
 });
-export type LoginInput = z.infer<typeof loginSchema>;
+export type TelegramInitDataInput = z.infer<typeof telegramInitDataSchema>;
+
+/** The two ways a browser can present a Telegram identity to the API. */
+export const telegramLoginSchema = z.discriminatedUnion('source', [
+  z.object({ source: z.literal('widget'), payload: telegramWidgetSchema }),
+  z.object({ source: z.literal('miniapp') }).merge(telegramInitDataSchema),
+]);
+export type TelegramLoginInput = z.infer<typeof telegramLoginSchema>;
 
 /**
  * An image location produced by the storage layer.
@@ -68,11 +81,6 @@ export const updateProfileSchema = z.object({
   avatarKey: z.string().max(200).nullable().optional(),
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
-
-export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1).max(128),
-  newPassword: passwordSchema,
-});
 
 // ---------------------------------------------------------------------------
 // Duels

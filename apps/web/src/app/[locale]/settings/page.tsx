@@ -32,6 +32,7 @@ export default async function SettingsPage({ params }: PageProps) {
           displayName: user.displayName,
           bio: user.bio,
           avatarUrl: user.avatarUrl,
+          telegramUsername: user.telegramUsername,
         }}
       />
     </div>

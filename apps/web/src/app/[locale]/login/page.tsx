@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { AuthForm } from '@/components/forms/auth-form';
+import { TelegramLogin } from '@/components/forms/telegram-login';
 import { Card, CardBody } from '@/components/ui/card';
 import { Logo } from '@/components/layout/logo';
+import { TELEGRAM_BOT_USERNAME } from '@/lib/env';
 import { isLocale } from '@/lib/i18n/config';
 import { getDictionary } from '@/lib/i18n/dictionary';
 import { currentUser } from '@/server/auth/guards';
@@ -37,8 +38,12 @@ export default async function LoginPage({ params }: PageProps) {
           </div>
 
           <Suspense fallback={null}>
-            <AuthForm mode="login" />
+            <TelegramLogin botUsername={TELEGRAM_BOT_USERNAME} />
           </Suspense>
+
+          <p className="text-fg-muted border-border border-t pt-4 text-center text-sm">
+            {t.auth.anonymousNote}
+          </p>
         </CardBody>
       </Card>
     </div>
